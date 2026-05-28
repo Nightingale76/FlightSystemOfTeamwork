@@ -1,8 +1,83 @@
 #include "dbmanager.h"
 #include <QCryptographicHash>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QRandomGenerator>
+#include <QSettings>
 #include <QSqlDatabase>
 #include <QThread>
+
+namespace {
+
+struct DatabaseConfig
+{
+    QString driver = "MySQL ODBC 8.0 Unicode Driver";
+    QString server = "127.0.0.1";
+    int port = 3306;
+    QString database = "flight_booking_system";
+    QString user = "root";
+    QString password;
+    QString charset = "utf8mb4";
+};
+
+QString firstExistingConfigPath()
+{
+    const QString appDirPath = QCoreApplication::applicationDirPath() + "/db_config.ini";
+    if (QFileInfo::exists(appDirPath))
+        return appDirPath;
+
+    const QString workDirPath = QDir::currentPath() + "/db_config.ini";
+    if (QFileInfo::exists(workDirPath))
+        return workDirPath;
+
+    return appDirPath;
+}
+
+QString envOrSetting(const char* envName, QSettings& settings, const QString& key, const QString& defaultValue)
+{
+    const QByteArray envValue = qgetenv(envName);
+    if (!envValue.isEmpty())
+        return QString::fromLocal8Bit(envValue);
+
+    return settings.value(key, defaultValue).toString();
+}
+
+DatabaseConfig loadDatabaseConfig()
+{
+    QSettings settings(firstExistingConfigPath(), QSettings::IniFormat);
+    settings.beginGroup("database");
+
+    DatabaseConfig config;
+    config.driver = envOrSetting("FLIGHT_DB_DRIVER", settings, "driver", config.driver);
+    config.server = envOrSetting("FLIGHT_DB_SERVER", settings, "server", config.server);
+    config.port = envOrSetting("FLIGHT_DB_PORT", settings, "port", QString::number(config.port)).toInt();
+    config.database = envOrSetting("FLIGHT_DB_NAME", settings, "name", config.database);
+    config.user = envOrSetting("FLIGHT_DB_USER", settings, "user", config.user);
+    config.password = envOrSetting("FLIGHT_DB_PASSWORD", settings, "password", config.password);
+    config.charset = envOrSetting("FLIGHT_DB_CHARSET", settings, "charset", config.charset);
+
+    settings.endGroup();
+    return config;
+}
+
+QString buildOdbcConnectionString(const DatabaseConfig& config)
+{
+    return QString("DRIVER={%1};"
+                   "SERVER=%2;PORT=%3;"
+                   "DATABASE=%4;"
+                   "USER=%5;PASSWORD=%6;"
+                   "charset=%7;")
+        .arg(config.driver,
+             config.server,
+             QString::number(config.port),
+             config.database,
+             config.user,
+             config.password,
+             config.charset);
+}
+
+}
 
 DBManager::DBManager(QObject* parent) : QObject(parent)
 {
@@ -28,11 +103,7 @@ QSqlDatabase DBManager::threadDB()
         return QSqlDatabase::database(connName);
 
     QSqlDatabase db = QSqlDatabase::addDatabase("QODBC", connName);
-    db.setDatabaseName("DRIVER={MySQL ODBC 8.0 Unicode Driver};"
-                       "SERVER=127.0.0.1;PORT=3306;"
-                       "DATABASE=flight_booking_system;"
-                       "USER=root;PASSWORD=207853Aa#;"
-                       "charset=utf8mb4;");
+    db.setDatabaseName(buildOdbcConnectionString(loadDatabaseConfig()));
     if (!db.open())
         qFatal("线程ODBC连接失败：%s", qPrintable(db.lastError().text()));
     return db;

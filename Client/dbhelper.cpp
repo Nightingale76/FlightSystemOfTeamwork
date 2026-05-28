@@ -15,7 +15,7 @@ DBHelper::DBHelper(QObject* parent) : QObject(parent)
     m_networkManager = new QNetworkAccessManager(this);
 
     // 从配置文件或环境变量读取服务器地址，默认为localhost
-    m_serverUrl = qEnvironmentVariable("FLIGHT_SERVER_URL", "http://172.27.36.173:8080");
+    m_serverUrl = qEnvironmentVariable("FLIGHT_SERVER_URL", "http://192.168.137.1:8080");
     //m_serverUrl = qEnvironmentVariable("FLIGHT_SERVER_URL", "http://localhost:8080");
 
     // 或者使用配置文件

@@ -1,0 +1,8 @@
+[database]
+driver=MySQL ODBC 8.0 Unicode Driver
+server=127.0.0.1
+port=3306
+name=flight_booking_system
+user=root
+password=your_mysql_password
+charset=utf8mb4
